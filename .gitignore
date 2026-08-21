@@ -1,0 +1,29 @@
+# Disc images and extracted game data (copyrighted)
+disc/
+extracted/
+*.chd
+*.cue
+*.bin
+*.gdi
+*.iso
+
+# Build artifacts
+build/
+*.o
+*.obj
+*.exe
+*.dll
+*.pdb
+*.lib
+*.ilk
+
+# IDE
+.vs/
+.vscode/
+*.sln
+*.vcxproj*
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
