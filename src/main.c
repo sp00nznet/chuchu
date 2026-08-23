@@ -9,6 +9,7 @@
 
 #include "recompiler/sh4_cpu.h"
 #include "hal/dc_hardware.h"
+#include "hal/dc_bios.h"
 #include "hal/pvr2.h"
 #include "platform/platform.h"
 #include "game/game_functions.h"
@@ -167,6 +168,18 @@ int main(int argc, char *argv[]) {
     }
 
     dc_bios_init(&g_cpu);
+
+    /* The BIOS leaves a table of syscall entry points in low RAM; this game
+     * reads its system settings through it (thunks at 0x8C143368 jump via
+     * 0x8C0000B8). Booting without a BIOS leaves that table zeroed, so those
+     * calls land on address 0. */
+    sh4_bios_install_vectors(&g_cpu);
+
+    /* The game asks the drive for absolute LBAs, so serve raw sectors from the
+     * disc's data track rather than from the extracted directory. Track 19 is
+     * where this disc keeps its payload; the high-density area starts at 45000
+     * and the audio tracks before it push track 19 out to 505044. */
+    sh4_bios_set_gdrom_track("disc/chuchu (Track 19).bin", 505044);
 
     sh4_set_irq_handler(cc_irq_handler);
 
