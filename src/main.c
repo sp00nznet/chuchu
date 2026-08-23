@@ -179,7 +179,14 @@ int main(int argc, char *argv[]) {
      * disc's data track rather than from the extracted directory. Track 19 is
      * where this disc keeps its payload; the high-density area starts at 45000
      * and the audio tracks before it push track 19 out to 505044. */
-    sh4_bios_set_gdrom_track("disc/chuchu (Track 19).bin", 505044);
+    /* The high-density area spans several tracks: the ISO directory is in
+     * track 3 at LBA 45000, the game's files are in track 19 at 505044, with
+     * the CD audio tracks in between. Both are needed. */
+    /* Addresses are FADs, not LBAs: a GD-ROM command's sector number is the
+     * frame address, 150 higher than the LBA. The high-density area starts at
+     * LBA 45000 = FAD 45150. */
+    sh4_bios_set_gdrom_track("disc/chuchu (Track 03).bin", 45150);
+    sh4_bios_set_gdrom_track("disc/chuchu (Track 19).bin", 505194);
 
     sh4_set_irq_handler(cc_irq_handler);
 
