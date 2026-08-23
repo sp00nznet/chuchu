@@ -188,6 +188,13 @@ int main(int argc, char *argv[]) {
     sh4_bios_set_gdrom_track("disc/chuchu (Track 03).bin", 45150);
     sh4_bios_set_gdrom_track("disc/chuchu (Track 19).bin", 505194);
 
+    /* The sound driver runs on the AICA's ARM7. The game uploads it, releases
+     * the ARM, then spins on sound RAM +0xF8 until the driver writes 'EXEC'
+     * there to say it is running - func_8C0ED55E, the last of three handshakes
+     * before video comes up. We do not execute that processor, so answer for
+     * it. Boot continues; nothing plays. */
+    sh4_aica_publish(0xF8, 0x43455845);   /* 'EXEC' */
+
     sh4_set_irq_handler(cc_irq_handler);
 
     printf("[BOOT] Starting game execution at 0x%08X...\n\n", g_cpu.pc);
