@@ -27,3 +27,9 @@ build/
 # OS
 Thumbs.db
 .DS_Store
+
+# Recompiled game source. This is a machine translation of the game's own
+# executable - a derivative of it - so it is not distributed here. Generate it
+# from your own copy of the disc: see the build steps in README.md.
+src/game/
+include/game/
