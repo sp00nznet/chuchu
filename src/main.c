@@ -193,7 +193,22 @@ int main(int argc, char *argv[]) {
      * there to say it is running - func_8C0ED55E, the last of three handshakes
      * before video comes up. We do not execute that processor, so answer for
      * it. Boot continues; nothing plays. */
-    sh4_aica_publish(0xF8, 0x43455845);   /* 'EXEC' */
+    sh4_aica_publish(0x12400, 1, 20);           /* request done: bit 0 */
+    sh4_aica_publish(0xF8, 0x43455845, 100);   /* 'EXEC': driver ready */
+
+    /* Sound init cannot succeed here. The library at func_8C011B20 uploads
+     * MANATEE.DRV, starts it, and then waits for the driver to report the
+     * request finished before it will load Chu2_SE.mlt into the same block.
+     * That report comes from the ARM7, and there is no ARM7 - the two words
+     * above get the game through the driver handshake but not through the
+     * request queue behind it, which is the library's own bookkeeping keyed on
+     * things only the driver does.
+     *
+     * The game treats a sound failure as fatal: it clears the run flag at
+     * 0x8C0859E4 and exits to the BIOS without ever entering its main loop. So
+     * report success and carry on. Nothing plays. Delete this the day there is
+     * an ARM7 to run. */
+    sh4_stub_function(0x8C0ECF34, 0);
 
     sh4_set_irq_handler(cc_irq_handler);
 
