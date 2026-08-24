@@ -83,7 +83,7 @@ target_link_libraries(chuchu dcrecomp_core ${GAME_LIBS})
 
 # Large stack for deep recompiled call chains
 if(MSVC)
-    target_link_options(chuchu PRIVATE /STACK:67108864)  # 64MB stack
+    target_link_options(chuchu PRIVATE /STACK:536870912)  # 512MB: the scene graph traversal recurses deeply
 else()
     target_link_options(chuchu PRIVATE -Wl,-z,stacksize=67108864)
 endif()
