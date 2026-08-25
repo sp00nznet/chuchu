@@ -188,26 +188,21 @@ int main(int argc, char *argv[]) {
     sh4_bios_set_gdrom_track("disc/chuchu (Track 03).bin", 45150);
     sh4_bios_set_gdrom_track("disc/chuchu (Track 19).bin", 505194);
 
-    /* The sound driver runs on the AICA's ARM7. The game uploads it, releases
-     * the ARM, then spins on sound RAM +0xF8 until the driver writes 'EXEC'
-     * there to say it is running - func_8C0ED55E, the last of three handshakes
-     * before video comes up. We do not execute that processor, so answer for
-     * it. Boot continues; nothing plays. */
-    sh4_aica_publish(0x12400, 1, 20);           /* request done: bit 0 */
-    sh4_aica_publish(0xF8, 0x43455845, 100);   /* 'EXEC': driver ready */
-
-    /* Sound init cannot succeed here. The library at func_8C011B20 uploads
-     * MANATEE.DRV, starts it, and then waits for the driver to report the
-     * request finished before it will load Chu2_SE.mlt into the same block.
-     * That report comes from the ARM7, and there is no ARM7 - the two words
-     * above get the game through the driver handshake but not through the
-     * request queue behind it, which is the library's own bookkeeping keyed on
-     * things only the driver does.
+    /* The sound driver runs on the AICA's ARM7, and dcrecomp now executes that
+     * processor, so the driver here is the real MANATEE.DRV off the disc. It
+     * boots, programs Timer A, services its own interrupts and writes both
+     * handshake values the game waits for - 'EXEC' at sound RAM +0xF8 and the
+     * request-done flag at +0x12400. Two stubs used to fake exactly those two
+     * words; they are gone.
      *
-     * The game treats a sound failure as fatal: it clears the run flag at
-     * 0x8C0859E4 and exits to the BIOS without ever entering its main loop. So
-     * report success and carry on. Nothing plays. Delete this the day there is
-     * an ARM7 to run. */
+     * One is left. The library at func_8C011B20 loads Chu2_SE.mlt into the
+     * block the driver was uploaded to, and the game treats a sound failure as
+     * fatal - it clears the run flag at 0x8C0859E4 and exits to the BIOS
+     * without ever entering its main loop. Report success and carry on.
+     *
+     * Still nothing plays: the driver runs, but the AICA's 64-channel mixer is
+     * not implemented, so its channel writes go into a register array and no
+     * samples come out. */
     sh4_stub_function(0x8C0ECF34, 0);
 
     sh4_set_irq_handler(cc_irq_handler);

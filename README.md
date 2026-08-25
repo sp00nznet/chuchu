@@ -23,6 +23,8 @@ Working:
 - initialises the GD-ROM drive, parses ISO9660, streams and decompresses its
   assets - PRS archives, PVM texture bundles, stage data
 - reaches its main loop and stays there, running its scene sequence
+- runs MANATEE.DRV on the AICA's ARM7 - the game's own sound driver, off the
+  disc, on an interpreted ARM7DI
 - programs the PowerVR2: video timing, scanout, TA lists, region and parameter
   bases, STARTRENDER every frame
 - feeds the tile accelerator through the store queues and CH2-DMA, and renders
@@ -32,9 +34,9 @@ Not working:
 
 - **textures.** The renderer draws flat-shaded triangles. This is the single
   biggest gap between the screenshot above and the game.
-- **sound.** The driver runs on the AICA's ARM7, which dcrecomp does not
-  execute. `src/main.c` declares three substitutions to get past it - see
-  below.
+- **sound.** The AICA's own ARM7 runs the game's real driver now, but the
+  chip's 64-channel mixer is not implemented, so the driver's channel writes go
+  into a register array and nothing reaches the speakers. See below.
 - **input.** Maple returns a plugged-in controller with nothing pressed.
 - speed. About 28fps against the hardware's 60, most of it spent in the
   interrupt path rather than in the game.
@@ -79,24 +81,47 @@ change. `extract_gdi.py` prints the layout it finds.
 disc tracks live at which LBA, and the interrupt handler the game expects at
 VBR+0x600. It is the only hand-written game-specific code here.
 
-## The sound stub
+## The sound processor
 
-The AICA has its own ARM7 and the sound driver runs on it. dcrecomp does not
-execute that processor, so the library that talks to it cannot complete the
-request it queues, and the game treats a sound failure as fatal - it clears its
-run flag and exits to the BIOS without ever entering the main loop.
+The AICA has an ARM7 of its own and the sound driver runs on it, not on the
+SH-4. dcrecomp interprets that processor, so what runs here is the real
+MANATEE.DRV the game uploads off its own disc.
 
-`src/main.c` declares the smallest set of substitutions that gets past it:
+It works. The driver boots from its reset vector, sets up its interrupt levels,
+programs Timer A, takes and acknowledges its own FIQs, and settles into its idle
+loop at about the rate the hardware would - a few million instructions a second
+against the real chip's 2.8MHz. Left alone it writes both handshake values the
+game waits on: `'EXEC'` at sound RAM +0xF8, and the request-done flag at
++0x12400.
+
+Two stubs used to fake exactly those two words. They are gone. One is left:
 
 ```c
-sh4_aica_publish(0x12400, 1, 20);           /* request mailbox */
-sh4_aica_publish(0xF8, 0x43455845, 100);    /* 'EXEC': driver ready */
 sh4_stub_function(0x8C0ECF34, 0);           /* sound bank load */
 ```
 
-They are declared, not patched into generated source, so they survive
-regeneration and anyone reading the file can see them. Nothing plays. Delete
-them the day there is an ARM7 to run.
+**Nothing plays yet.** The driver runs, but the AICA's 64-channel PCM/ADPCM
+mixer is not implemented - the channel registers it programs are an array that
+nothing reads back. That mixer, and the driver's reply interrupt to the SH-4,
+are what is left.
+
+That reply is the interesting one. The driver signals the SH-4 by raising bit 5
+of MCIPD, which arrives as SB_ISTNRM bit 15. That bit is level-triggered and
+only the game's own handler clears it, so raising it today stalls the SH-4
+inside its interrupt handler and the game stops drawing. `DCRECOMP_AICA_IRQ=1`
+turns it on to work on.
+
+Two things worth knowing if you go near this:
+
+- **Timer A is interrupt bit 6**, not 5. The driver enables `SCIEB=0x48` - bit 6
+  for its timer and bit 3 alongside it.
+- **The FIQ handler dispatches on register 0x2D00**, the interrupt-request
+  level, and that level is not stored anywhere. It is assembled bit by bit from
+  the three SCILV registers, which are bit-planes: for pending interrupt N, its
+  level is bit N of each of the three, low plane first. Return a constant zero
+  there and the handler spins forever with nothing to dispatch on - which is
+  exactly what it did here, 62,000 reads a second, until that register was
+  computed properly.
 
 ## Debugging
 
@@ -108,6 +133,9 @@ The framework carries the tools that found everything here. All off by default:
 | `DCRECOMP_STACKEVERY=N` | the call chain interrupted, every Nth interrupt |
 | `DCRECOMP_WATCH=addr` | write watchpoint, with the chain that did it |
 | `DCRECOMP_AICAPOLL` | sound RAM words the game is stuck reading |
+| `DCRECOMP_ARM7` | sound processor PC, mode, rate, and the registers it polls |
+| `DCRECOMP_AICATRACE` | AICA control-register traffic, tagged by which side wrote |
+| `DCRECOMP_AICA_IRQ` | let the driver interrupt the SH-4 (stalls it today) |
 | `DCRECOMP_SCREENSHOT=f.ppm` | write the frame to a PPM |
 | `DCRECOMP_NO_RENDER` / `_NO_PRESENT` | bisect the two paths that draw |
 
